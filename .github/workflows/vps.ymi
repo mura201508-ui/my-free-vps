@@ -1,9 +1,0 @@
-name: VPS
-on: workflow_dispatch
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - run: |
-        sudo bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh) --no-input
-    - uses: mxschmitt/action-tmate@v3
