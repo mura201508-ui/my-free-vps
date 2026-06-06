@@ -1,0 +1,12 @@
+name: VPS
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install 3X-UI
+        run: |
+          wget -O install.sh https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh
+          sudo bash install.sh
+      - name: Setup upterm
+        uses: lhotari/action-upterm@v1
