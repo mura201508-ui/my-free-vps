@@ -1,0 +1,53 @@
+name: SSH Server
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH Server
+        run: |
+          # Установка SSH сервера
+          sudo apt update
+          sudo apt install -y openssh-server
+
+          # Меняем порт на 443 (обычно не блокируется)
+          sudo sed -i 's/#Port 22/Port 443/' /etc/ssh/sshd_config
+
+          # Разрешаем вход под root
+          sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+          # Генерируем случайный пароль (12 символов)
+          PASSWORD=$(openssl rand -base64 12)
+          echo "root:$PASSWORD" | sudo chpasswd
+
+          # Запускаем SSH
+          sudo systemctl start ssh
+
+          # Получаем IP
+          IP=$(curl -s ifconfig.me)
+
+          # Генерируем SSH-ключ для удобного входа (опционально)
+          ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
+          PUBKEY=$(cat ~/.ssh/id_ed25519.pub)
+          echo "$PUBKEY" | sudo tee -a /root/.ssh/authorized_keys
+
+          # ВЫВОДИМ ВСЕ ДАННЫЕ
+          echo ""
+          echo "═══════════════════════════════════════════"
+          echo "✅ SSH СЕРВЕР ГОТОВ"
+          echo "═══════════════════════════════════════════"
+          echo "🌍 IP: $IP"
+          echo "🔌 Порт: 443"
+          echo "👤 Логин: root"
+          echo "🔑 Пароль: $PASSWORD"
+          echo ""
+          echo "📌 Команда для подключения:"
+          echo "ssh root@$IP -p 443"
+          echo ""
+          echo "🔐 Публичный ключ (можешь добавить в ~/.ssh/authorized_keys):"
+          echo "$PUBKEY"
+          echo "═══════════════════════════════════════════"
+
+      - name: Keep alive
+        run: sleep 360000
