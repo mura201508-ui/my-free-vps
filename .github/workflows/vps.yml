@@ -1,0 +1,51 @@
+name: Pure Password SSH
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup password-only SSH
+        run: |
+          # Установка SSH
+          sudo apt update
+          sudo apt install -y openssh-server
+
+          # Настройка только на пароль
+          sudo bash -c 'cat > /etc/ssh/sshd_config << EOF
+Port 22
+Port 8022
+PermitRootLogin yes
+PasswordAuthentication yes
+PubkeyAuthentication no
+ChallengeResponseAuthentication no
+UsePAM yes
+EOF'
+
+          # Генерация пароля
+          PASSWORD=$(openssl rand -base64 16 | tr -d '=+/' | cut -c1-16)
+          echo "root:$PASSWORD" | sudo chpasswd
+
+          # Запуск SSH
+          sudo systemctl restart ssh
+
+          # Получение IP
+          IP=$(curl -s ifconfig.me)
+
+          echo ""
+          echo "═══════════════════════════════════════════"
+          echo "✅ SSH СЕРВЕР (ТОЛЬКО ПАРОЛЬ)"
+          echo "═══════════════════════════════════════════"
+          echo "🌍 IP: $IP"
+          echo "🔌 Порты: 22 или 8022"
+          echo "👤 Логин: root"
+          echo "🔑 ПАРОЛЬ: $PASSWORD"
+          echo ""
+          echo "📌 КОМАНДА ДЛЯ ПОДКЛЮЧЕНИЯ:"
+          echo "ssh root@$IP -p 22"
+          echo ""
+          echo "Введи пароль: $PASSWORD"
+          echo "═══════════════════════════════════════════"
+
+      - name: Keep alive
+        run: sleep 360000
