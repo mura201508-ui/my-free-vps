@@ -1,0 +1,99 @@
+name: FULL ROOT
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          # ============================================
+          # 1. SSH (полный root, вход по паролю)
+          # ============================================
+          sudo apt update
+          sudo apt install -y openssh-server
+
+          sudo bash -c 'cat > /etc/ssh/sshd_config << EOF
+Port 22
+Port 8022
+PermitRootLogin yes
+PasswordAuthentication yes
+PubkeyAuthentication no
+EOF'
+
+          PASSWORD=$(openssl rand -base64 12 | tr -d '=+/' | cut -c1-12)
+          echo "root:$PASSWORD" | sudo chpasswd
+          sudo systemctl restart ssh
+
+          # ============================================
+          # 2. Установка 3X-UI
+          # ============================================
+          sudo bash -c "$(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)"
+          sleep 5
+
+          # Настройка панели
+          sudo x-ui setting -port 8080 -webBasePath "panel" -listenIP "0.0.0.0"
+          sudo x-ui setting -username admin -password admin
+
+          # ============================================
+          # 3. Настройка VLESS + Reality
+          # ============================================
+          # Генерация ключей
+          REALITY_OUTPUT=$(sudo x-ui generate reality-key)
+          PRIVATE_KEY=$(echo "$REALITY_OUTPUT" | grep "Private key:" | awk '{print $3}')
+          PUBLIC_KEY=$(echo "$REALITY_OUTPUT" | grep "Public key:" | awk '{print $3}')
+          SHORT_ID=$(openssl rand -hex 8)
+          UUID=$(cat /proc/sys/kernel/random/uuid)
+
+          # Создание inbound
+          sudo x-ui add-inbound --json "$(cat << EOI
+{
+  "remarks": "VLESS-Reality",
+  "port": 443,
+  "protocol": "vless",
+  "settings": {
+    "clients": [{"id": "$UUID", "flow": "xtls-rprx-vision"}],
+    "decryption": "none"
+  },
+  "streamSettings": {
+    "network": "tcp",
+    "security": "reality",
+    "realitySettings": {
+      "dest": "www.microsoft.com:443",
+      "serverNames": ["www.microsoft.com"],
+      "privateKey": "$PRIVATE_KEY",
+      "shortIds": ["$SHORT_ID"]
+    }
+  }
+}
+EOI
+)"
+
+          # ============================================
+          # 4. Вывод данных
+          # ============================================
+          IP=$(curl -s ifconfig.me)
+          VLESS_LINK="vless://$UUID@$IP:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.microsoft.com&fp=chrome&pbk=$PUBLIC_KEY&sid=$SHORT_ID&type=tcp&headerType=none#GitHub-VLESS"
+
+          echo ""
+          echo "════════════════════════════════════════════════════════════"
+          echo "✅ ВСЁ ГОТОВО!"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "📡 SSH ДОСТУП:"
+          echo "   IP: $IP"
+          echo "   Порт: 22 или 8022"
+          echo "   Логин: root"
+          echo "   Пароль: $PASSWORD"
+          echo "   Команда: ssh root@$IP -p 22"
+          echo ""
+          echo "🌐 ПАНЕЛЬ 3X-UI:"
+          echo "   http://$IP:8080/panel"
+          echo "   Логин: admin"
+          echo "   Пароль: admin"
+          echo ""
+          echo "🔗 ГОТОВАЯ СТРОКА VLESS (для v2rayNG, Nekoray и др.):"
+          echo "$VLESS_LINK"
+          echo ""
+          echo "════════════════════════════════════════════════════════════"
+
+      - name: Keep alive
+        run: sleep 360000
